@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OPTEC TOOL FIBER</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <div id="app">
+    <header class="app-header">
+      <h1>إدارة مخزون الراوتر</h1>
+      <div class="header-actions">
+        <button id="lockBtn" class="btn btn-light" title="قفل التطبيق (L)">🔒 قفل</button>
+        <button id="exportBtn" class="btn btn-light" title="تصدير النسخة الاحتياطية">⬇️ تصدير</button>
+        <button id="exportXlsxBtn" class="btn btn-primary" title="تصدير إلى Excel (.xlsx)">📊 Excel</button>
+        <label class="btn btn-light file-label" title="استيراد النسخة الاحتياطية">
+          ⬆️ استيراد
+          <input id="importInput" type="file" accept="application/json,text/csv" hidden />
+        </label>
+      </div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="dashboard">لوحة التحكم</button>
+      <button class="tab" data-tab="inventory">إدارة المخزون</button>
+      <button class="tab" data-tab="sip">إضافة SIP</button>
+      <button class="tab" data-tab="reports">التقارير والسجلات</button>
+      <button class="tab" data-tab="settings">الإعدادات</button>
+    </nav>
+
+    <main class="tab-contents">
+      <!-- Dashboard -->
+      <section id="dashboard" class="tab-content shown">
+        <div class="cards">
+          <div class="card">
+            <h3>المخزون الحالي</h3>
+            <div class="kpi">
+              <span id="currentStock">0</span>
+              <span>/</span>
+              <span id="maxCapacity">0</span>
+            </div>
+            <div id="stockStatus" class="status-badge">-</div>
+          </div>
+
+          <div class="card">
+            <h3>إحصائيات اليوم</h3>
+            <div class="kpi"><span id="todaySipCount">0</span> عملية SIP</div>
+            <small id="todayDate"></small>
+          </div>
+
+          <div class="card quick-actions">
+            <h3>إجراءات سريعة</h3>
+            <div class="buttons">
+              <button class="btn btn-primary" id="add5">+5</button>
+              <button class="btn btn-primary" id="add10">+10</button>
+              <button class="btn btn-danger" id="sub5">-5</button>
+              <button class="btn btn-danger" id="sub10">-10</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>الحالة العامة</h3>
+            <canvas id="stockPie"></canvas>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>استهلاك الأسبوع</h3>
+          <canvas id="weeklyChart" height="120"></canvas>
+        </div>
+
+        <div class="card">
+          <h3>جدول استهلاك الأسبوع (SIP)</h3>
+          <div class="table-wrap">
+            <table id="weeklyTable" class="table">
+              <thead>
+                <tr>
+                  <th>اليوم</th>
+                  <th>التاريخ</th>
+                  <th>الوقت</th>
+                  <th>الشهر</th>
+                  <th>رقم SIP</th>
+                  <th>مطراج الكابل</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>أحدث العمليات</h3>
+          <ul id="recentLogs" class="list"></ul>
+        </div>
+      </section>
+
+      <!-- Inventory -->
+      <section id="inventory" class="tab-content">
+        <div class="inventory-grid">
+          <div class="card">
+            <h3>الكمية والسعة</h3>
+            <div class="row">
+              <div class="col">
+                <label>الكمية الحالية</label>
+                <input id="invCurrent" type="number" min="0" />
+              </div>
+              <div class="col">
+                <label>السعة القصوى</label>
+                <input id="invCapacity" type="number" min="1" />
+              </div>
+            </div>
+            <div class="buttons mt">
+              <button id="saveInv" class="btn btn-success">حفظ</button>
+              <button id="resetInv" class="btn btn-light">إعادة تعيين</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>تعديل سريع</h3>
+            <div class="buttons">
+              <button class="btn btn-primary" data-delta="5">+5</button>
+              <button class="btn btn-primary" data-delta="10">+10</button>
+              <button class="btn btn-danger" data-delta="-5">-5</button>
+              <button class="btn btn-danger" data-delta="-10">-10</button>
+            </div>
+            <div class="row mt">
+              <div class="col">
+                <label>قيمة مخصصة</label>
+                <input id="customDelta" type="number" />
+              </div>
+              <div class="col">
+                <label>&nbsp;</label>
+                <button id="applyCustom" class="btn btn-primary">تطبيق</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>سجل التعديلات</h3>
+            <div class="row mt">
+              <div class="col">
+                <label>عدد السجلات المطلوب حذفها</label>
+                <input id="invDeleteCount" type="number" min="1" placeholder="مثال: 5" />
+              </div>
+              <div class="col">
+                <label>&nbsp;</label>
+                <button id="deleteInvLogs" class="btn btn-danger">حذف</button>
+              </div>
+            </div>
+            <ul id="invLogs" class="list"></ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- SIP Add -->
+      <section id="sip" class="tab-content">
+        <div class="card">
+          <h3>إضافة رقم SIP جديد</h3>
+          <form id="sipForm">
+            <div class="row">
+              <div class="col">
+                <label>رقم SIP (مثال: 1000-9999)</label>
+                <input id="sipNumber" inputmode="numeric" pattern="^[0-9]{3,15}$" required />
+              </div>
+              <div class="col">
+                <label>مطراج الكابل (اختياري)</label>
+                <input id="sipNote" />
+              </div>
+            </div>
+            <div class="buttons mt">
+              <button class="btn btn-success" type="submit">حفظ</button>
+              <button class="btn btn-light" type="reset">إلغاء</button>
+            </div>
+          </form>
+          <div id="sipImpact" class="hint"></div>
+        </div>
+
+        <div class="card">
+          <h3>بحث وتصفية</h3>
+          <div class="row">
+            <div class="col"><input id="searchSip" placeholder="بحث عن SIP" /></div>
+            <div class="col"><input id="fromDate" type="date" /></div>
+            <div class="col"><input id="toDate" type="date" /></div>
+          </div>
+          <ul id="sipList" class="list"></ul>
+        </div>
+      </section>
+
+      <!-- Reports -->
+      <section id="reports" class="tab-content">
+        <div class="card">
+          <h3>السجلات</h3>
+          <div class="row">
+            <div class="col"><input id="searchLog" placeholder="بحث في السجلات" /></div>
+            <div class="col"><input id="logFrom" type="date" /></div>
+            <div class="col"><input id="logTo" type="date" /></div>
+          </div>
+          <ul id="allLogs" class="list"></ul>
+        </div>
+      </section>
+
+      <!-- Settings -->
+      <section id="settings" class="tab-content">
+        <div class="card">
+          <h3>خيارات التخصيص</h3>
+          <div class="row">
+            <div class="col">
+              <label>اختيار اللون الأساسي</label>
+              <input id="primaryColor" type="color" value="#1e3a8a" />
+            </div>
+            <div class="col">
+              <label>تفعيل كلمة مرور</label>
+              <input id="enablePassword" type="checkbox" />
+            </div>
+            <div class="col" id="passwordWrap" style="display:none;">
+              <label>كلمة المرور</label>
+              <input id="appPassword" type="password" />
+            </div>
+          </div>
+          <div class="buttons mt">
+            <button id="saveSettings" class="btn btn-success">حفظ الإعدادات</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toastContainer"></div>
+  <div id="confirmModal" class="modal hidden">
+    <div class="modal-content">
+      <p id="confirmMessage">هل أنت متأكد؟</p>
+      <div class="buttons">
+        <button id="confirmYes" class="btn btn-success">تأكيد</button>
+        <button id="confirmNo" class="btn btn-light">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="lockScreen" class="modal hidden">
+    <div class="modal-content">
+      <h3>التطبيق مقفل</h3>
+      <input id="unlockPassword" type="password" placeholder="أدخل كلمة المرور" />
+      <div class="buttons mt">
+        <button id="unlockBtn" class="btn btn-primary">فتح</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
