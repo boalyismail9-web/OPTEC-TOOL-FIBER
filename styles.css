@@ -208,17 +208,23 @@ html.dark .toast{background:#0f172a;color:#e5e7eb}
   .table.compact td:first-child{font-weight:600;margin-bottom:4px}
   input[type="text"],input[type="number"],input[type="password"],input[type="date"],input[type="datetime-local"],input:not([type]){width:100%}
   .buttons{flex-wrap:wrap}
-  body{font-size:14px}
+  body{font-size:12px}
   .app-header{padding:8px 12px}
-  .app-header h1{font-size:18px}
-  .tabs.header-tabs .tab{padding:6px 8px;font-size:12px}
-  h3{font-size:16px}
+  .app-header h1{font-size:16px}
+  .tabs.header-tabs .tab{padding:5px 8px;font-size:11px}
+  h3{font-size:14px}
   .card{padding:12px}
-  .kpi span{font-size:18px}
-  .btn{padding:6px 10px;font-size:12px;border-radius:8px}
+  .kpi span{font-size:16px}
+  .btn{padding:5px 8px;font-size:11px;border-radius:8px;line-height:1.2}
   .quick-actions .buttons .btn{margin:2px}
   .table.compact tbody td{padding:6px 8px}
-  input[type="text"],input[type="number"],input[type="password"],input[type="date"],input[type="datetime-local"],input:not([type]){padding:6px 8px;font-size:14px}
-  .status-badge{font-size:12px;padding:4px 8px}
+  input[type="text"],input[type="number"],input[type="password"],input[type="date"],input[type="datetime-local"],input:not([type]){padding:5px 8px;font-size:12px;line-height:1.2}
+  .status-badge{font-size:11px;padding:3px 6px}
   .list li{padding:8px 10px}
+
+  /* Hide some columns in weekly table for narrow screens: time (3), month (4) */
+  #weeklyTable thead th:nth-child(3),
+  #weeklyTable thead th:nth-child(4),
+  #weeklyTable tbody td:nth-child(3),
+  #weeklyTable tbody td:nth-child(4){display:none}
 }
