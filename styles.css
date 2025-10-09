@@ -190,9 +190,35 @@ html.dark input[type="password"],
 html.dark input[type="date"],
 html.dark input[type="datetime-local"],
 html.dark input:not([type]){background:#111827;border-color:#334155;color:#e5e7eb}
-html.dark .btn-light{background:#111827;color:#e5e7eb;border-color:#334155}
 html.dark .table{background:#0f172a;border-color:#1f2937}
 html.dark .table thead th{background:#111827;color:#e5e7eb;border-bottom:1px solid #1f2937}
 html.dark .table tbody td{border-top:1px solid #1f2937}
 html.dark .list li{background:#0b1220;border-color:#1f2937}
 html.dark .toast{background:#0f172a;color:#e5e7eb}
+
+/* Mobile responsiveness */
+.table-wrap{overflow-x:auto}
+@media (max-width: 640px){
+  .cards{display:grid;grid-template-columns:1fr;gap:12px}
+  .inventory-grid{display:grid;grid-template-columns:1fr;gap:12px}
+  .row{display:flex;flex-direction:column;gap:10px}
+  .label-cell{width:auto;white-space:nowrap}
+  .table.compact td{display:block;width:100%}
+  .table.compact tr{display:block;margin-bottom:8px}
+  .table.compact td:first-child{font-weight:600;margin-bottom:4px}
+  input[type="text"],input[type="number"],input[type="password"],input[type="date"],input[type="datetime-local"],input:not([type]){width:100%}
+  .buttons{flex-wrap:wrap}
+  body{font-size:14px}
+  .app-header{padding:8px 12px}
+  .app-header h1{font-size:18px}
+  .tabs.header-tabs .tab{padding:6px 8px;font-size:12px}
+  h3{font-size:16px}
+  .card{padding:12px}
+  .kpi span{font-size:18px}
+  .btn{padding:6px 10px;font-size:12px;border-radius:8px}
+  .quick-actions .buttons .btn{margin:2px}
+  .table.compact tbody td{padding:6px 8px}
+  input[type="text"],input[type="number"],input[type="password"],input[type="date"],input[type="datetime-local"],input:not([type]){padding:6px 8px;font-size:14px}
+  .status-badge{font-size:12px;padding:4px 8px}
+  .list li{padding:8px 10px}
+}
