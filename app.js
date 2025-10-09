@@ -6,9 +6,11 @@
 const LS_KEY = 'router_inventory_app_v1';
 const DEFAULT_STATE = {
   inventory: { capacity: 50, stock: 50 },
+  cable: { capacity: 0, stock: 0 }, // بالمتر
   sips: [], // {id, number, note, createdAt}
+  
   logs: [], // {id, type: 'inv'|'sip'|'sys', message, delta:0, createdAt}
-  settings: { primaryColor: '#1e3a8a', passwordEnabled: false, password: '' },
+  settings: { primaryColor: '#1e3a8a', darkEnabled: false, passwordEnabled: false, password: '' },
   meta: { lastBackupAt: null }
 };
 
@@ -22,6 +24,7 @@ function loadState() {
     // تطابق الشكل مع الافتراضي
     return { ...structuredClone(DEFAULT_STATE), ...parsed,
       inventory: { ...DEFAULT_STATE.inventory, ...(parsed.inventory||{}) },
+      cable: { ...DEFAULT_STATE.cable, ...(parsed.cable||{}) },
       settings: { ...DEFAULT_STATE.settings, ...(parsed.settings||{}) },
       meta: { ...DEFAULT_STATE.meta, ...(parsed.meta||{}) },
       sips: Array.isArray(parsed.sips)? parsed.sips : [],
@@ -55,6 +58,13 @@ function toLatinDigits(input){
 }
 const genId = () => Math.random().toString(36).slice(2,9)+Date.now().toString(36);
 
+// تنسيق تاريخ/وقت ليتوافق مع حقل datetime-local
+function toDatetimeLocalValue(date){
+  // عالج الإزاحة بحيث نأخذ الوقت المحلي بدون المنطقة في النص
+  const d = new Date(date.getTime() - date.getTimezoneOffset()*60000);
+  return d.toISOString().slice(0,16); // YYYY-MM-DDTHH:mm
+}
+
 function toast(msg, type='info', timeout=3000){
   const host = $('#toastContainer');
   const el = document.createElement('div');
@@ -84,6 +94,13 @@ function applyPrimaryColor(color){
   document.documentElement.style.setProperty('--primary', color);
 }
 
+// تطبيق الوضع الداكن
+function applyDarkMode(enabled){
+  const root = document.documentElement;
+  if (enabled) root.classList.add('dark');
+  else root.classList.remove('dark');
+}
+
 /* ==========================
    تبويبات
 ========================== */
@@ -95,6 +112,24 @@ function initTabs(){
       const t = btn.dataset.tab;
       $$('.tab-content').forEach(sec=>sec.classList.remove('shown'));
       $('#'+t).classList.add('shown');
+    });
+  });
+}
+
+// تبويبات فرعية داخل صفحة SIP
+function initSubTabs(){
+  $$('.sub-tab').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      // فعّل الزر
+      const group = btn.closest('.sub-tabs');
+      group?.querySelectorAll('.sub-tab').forEach(b=> b.classList.remove('active'));
+      btn.classList.add('active');
+      // أظهر المحتوى الموافق
+      const id = btn.dataset.subtab;
+      const host = btn.closest('form')?.parentElement; // داخل نفس البطاقة
+      host?.querySelectorAll('.sub-tab-content').forEach(sec=> sec.classList.remove('shown'));
+      const target = host?.querySelector('#'+id);
+      if (target) target.classList.add('shown');
     });
   });
 }
@@ -116,6 +151,21 @@ function updateDashboard(){
   if (remaining <= 5) { badge.classList.add('badge-crit'); badge.textContent = 'تحذير حرج: 5 أو أقل'; }
   else if (remaining <= 10) { badge.classList.add('badge-low'); badge.textContent = 'تحذير منخفض: 10 أو أقل'; }
   else { badge.textContent = 'مستقر'; }
+
+  // بطاقة ميتراج الكابل
+  if ($('#cableCurrent')){
+    $('#cableCurrent').textContent = formatNum(state.cable.stock||0);
+    $('#cableCapacity').textContent = formatNum(state.cable.capacity||0);
+    const cbadge = $('#cableStatus');
+    if (cbadge){
+      cbadge.classList.remove('badge-low','badge-crit');
+      const crem = state.cable.stock||0;
+      // عتبات افتراضية: حرج <= 20م، منخفض <= 50م
+      if (crem <= 20) { cbadge.classList.add('badge-crit'); cbadge.textContent = 'تحذير حرج: 20م أو أقل'; }
+      else if (crem <= 50) { cbadge.classList.add('badge-low'); cbadge.textContent = 'تحذير منخفض: 50م أو أقل'; }
+      else { cbadge.textContent = 'مستقر'; }
+    }
+  }
 
   renderRecentLogs();
   renderCharts();
@@ -157,6 +207,31 @@ function adjustStock(delta, reason='تعديل يدوي'){
   updateAllUI();
 }
 
+// إدارة سعة/مخزون الكابل (بالمتر)
+function setCable(capacity, stock){
+  capacity = Math.max(0, Number(capacity||0));
+  stock = Math.min(capacity, Math.max(0, Number(stock||0)));
+  state.cable.capacity = capacity;
+  state.cable.stock = stock;
+  logEvent('sys', `تحديث سعة الكابل إلى ${capacity}م والكمية إلى ${stock}م`);
+  saveState();
+  updateAllUI();
+}
+
+function adjustCable(delta, reason='تعديل كابل'){
+  delta = Number(delta||0);
+  if (!delta) return;
+  const before = state.cable.stock || 0;
+  const cap = Math.max(0, Number(state.cable.capacity||0));
+  const after = Math.min(cap, Math.max(0, before + delta));
+  const applied = after - before;
+  if (applied === 0){ toast('لا يمكن تجاوز حدود الكابل','warn'); return; }
+  state.cable.stock = after;
+  logEvent('inv', `${reason}: ${applied>0?'+':''}${applied}م`, applied);
+  saveState();
+  updateAllUI();
+}
+
 function consumeOneForSip(){
   if (state.inventory.stock <= 0) return false;
   state.inventory.stock -= 1;
@@ -168,6 +243,9 @@ function consumeOneForSip(){
 function populateInventoryPage(){
   $('#invCurrent').value = state.inventory.stock;
   $('#invCapacity').value = state.inventory.capacity;
+  // حقول الكابل
+  if ($('#invCableCurrent')) $('#invCableCurrent').value = state.cable.stock || 0;
+  if ($('#invCableCapacity')) $('#invCableCapacity').value = state.cable.capacity || 0;
   renderInvLogs();
 }
 
@@ -212,20 +290,60 @@ async function deleteRecentInvLogs(count){
 /* ==========================
    SIP
 ========================== */
-function addSip(number, note){
+function addSip(number, note, createdAtIso){
   number = String(number||'').trim();
   if(!/^[0-9]{3,15}$/.test(number)) { toast('صيغة رقم غير صحيحة', 'error'); return false; }
   // منع التكرار
   if (state.sips.some(s => s.number === number)) { toast('الرقم موجود مسبقاً', 'warn'); return false; }
   if (state.inventory.stock <= 0){ toast('المخزون نفد، لا يمكن إضافة SIP جديد', 'error'); return false; }
 
-  const s = { id: genId(), number, note: String(note||'').trim(), createdAt: nowIso() };
+  const s = { id: genId(), number, note: String(note||'').trim(), createdAt: createdAtIso || nowIso() };
   state.sips.push(s);
   logEvent('sip', `إضافة SIP ${number}${s.note? ' - '+s.note:''}`);
   consumeOneForSip();
+  // خصم من مطراج الكابل إن كانت القيمة رقمية في الملاحظة
+  const noteDigits = toLatinDigits(s.note).match(/\d+/);
+  if (noteDigits){
+    const meters = Number(noteDigits[0]);
+    if (meters>0){
+      const before = state.cable.stock || 0;
+      const after = Math.max(0, before - meters);
+      const applied = after - before; // سالب
+      state.cable.stock = after;
+      logEvent('inv', `خصم ${meters}م من الكابل لعملية SIP`, applied);
+    }
+  }
   saveState();
   updateAllUI();
   toast('تمت إضافة SIP بنجاح', 'success');
+  return true;
+}
+
+// تحديث SIP قائم (تعديل الرقم/الملاحظة)
+function updateSip(id, newNumber, newNote){
+  const s = state.sips.find(x=> x.id === id);
+  if(!s){ toast('العنصر غير موجود','error'); return false; }
+  const prevNumber = s.number;
+  const prevNote = s.note || '';
+  newNumber = String(newNumber||'').trim();
+  newNote = String(newNote||'').trim();
+
+  if(!/^[0-9]{3,15}$/.test(newNumber)) { toast('صيغة رقم غير صحيحة', 'error'); return false; }
+  // منع التكرار مع استثناء العنصر نفسه
+  if (newNumber !== prevNumber && state.sips.some(x => x.number === newNumber)){
+    toast('الرقم موجود مسبقاً','warn');
+    return false;
+  }
+
+  s.number = newNumber;
+  s.note = newNote;
+  saveState();
+  const msgParts = [];
+  if (newNumber !== prevNumber) msgParts.push(`الرقم: ${prevNumber} → ${newNumber}`);
+  if (newNote !== prevNote) msgParts.push('تحديث مطراج الكابل');
+  logEvent('sip', msgParts.length? `تحديث SIP (${msgParts.join(' ، ')})` : 'تحديث SIP بدون تغييرات');
+  updateAllUI();
+  toast('تم تحديث SIP','success');
   return true;
 }
 
@@ -233,26 +351,141 @@ function renderSipList(){
   const ul = $('#sipList');
   ul.innerHTML = '';
   const q = ($('#searchSip').value||'').trim();
+  const qNorm = toLatinDigits(q).replace(/\D+/g,'');
   const fd = $('#fromDate').value ? new Date($('#fromDate').value) : null;
   const td = $('#toDate').value ? new Date($('#toDate').value) : null;
+  const noteQ = ($('#noteFilter')?.value||'').trim();
 
   let items = [...state.sips].sort((a,b)=> new Date(b.createdAt)-new Date(a.createdAt));
-  if(q) items = items.filter(s => s.number.includes(q));
+  if(qNorm) items = items.filter(s => s.number.includes(qNorm));
+  if(noteQ) items = items.filter(s => (s.note||'').includes(noteQ));
   if(fd) items = items.filter(s => new Date(s.createdAt) >= fd);
   if(td) { td.setHours(23,59,59,999); items = items.filter(s => new Date(s.createdAt) <= td); }
 
+  // إبراز المطابقة في الرقم
+  function highlightNumber(num){
+    const disp = toLatinDigits(num);
+    if(!qNorm) return `<strong>${disp}</strong>`;
+    const idx = disp.indexOf(qNorm);
+    if(idx === -1) return `<strong>${disp}</strong>`;
+    const before = disp.slice(0, idx);
+    const match = disp.slice(idx, idx+qNorm.length);
+    const after = disp.slice(idx+qNorm.length);
+    return `<strong>${before}<mark class="hl">${match}</mark>${after}</strong>`;
+  }
+
   for (const s of items.slice(0,200)){
     const li = document.createElement('li');
+
+    // عرض عادي
+    const normalWrap = document.createElement('div');
+    normalWrap.innerHTML = `<div><div>${highlightNumber(s.number)}</div><div class="meta">${s.note? s.note+' · ' : ''}${fmtDateTime(s.createdAt)}</div></div>`;
+
+    const btnsWrap = document.createElement('div');
+    btnsWrap.style.display = 'flex';
+    btnsWrap.style.gap = '8px';
     const copyBtn = document.createElement('button');
     copyBtn.className = 'btn btn-light';
     copyBtn.textContent = 'نسخ';
     copyBtn.addEventListener('click', async ()=>{
       try{ await navigator.clipboard.writeText(toLatinDigits(s.number)); toast('تم النسخ', 'success'); }catch{ toast('تعذر النسخ','error'); }
     });
-    li.innerHTML = `<div><div><strong>${toLatinDigits(s.number)}</strong></div><div class="meta">${s.note? s.note+' · ' : ''}${fmtDateTime(s.createdAt)}</div></div>`;
-    li.appendChild(copyBtn);
+    const editBtn = document.createElement('button');
+    editBtn.className = 'btn btn-primary';
+    editBtn.textContent = 'تعديل';
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn btn-danger';
+    delBtn.textContent = 'حذف';
+
+    btnsWrap.appendChild(copyBtn);
+    btnsWrap.appendChild(editBtn);
+    btnsWrap.appendChild(delBtn);
+
+    // وضع التحرير
+    const editWrap = document.createElement('div');
+    editWrap.style.display = 'none';
+    editWrap.innerHTML = `
+      <div class="row">
+        <div class="col"><input class="sip-edit-number" inputmode="numeric" pattern="^[0-9]{3,15}$" value="${s.number}" /></div>
+        <div class="col"><input class="sip-edit-note" value="${s.note||''}" /></div>
+      </div>
+    `;
+    const actionsWrap = document.createElement('div');
+    actionsWrap.className = 'buttons mt';
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn btn-success';
+    saveBtn.textContent = 'تحديث';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn btn-light';
+    cancelBtn.textContent = 'إلغاء';
+    actionsWrap.appendChild(saveBtn);
+    actionsWrap.appendChild(cancelBtn);
+    editWrap.appendChild(actionsWrap);
+
+    // تبديل بين الوضعين
+    function enterEdit(){ normalWrap.style.display='none'; btnsWrap.style.display='none'; editWrap.style.display='block'; }
+    function exitEdit(){ normalWrap.style.display=''; btnsWrap.style.display='flex'; editWrap.style.display='none'; }
+
+    editBtn.addEventListener('click', ()=> enterEdit());
+    cancelBtn.addEventListener('click', ()=> exitEdit());
+    // طب-normalize أثناء الكتابة
+    const inlineNum = editWrap.querySelector('.sip-edit-number');
+    inlineNum.addEventListener('input', ()=>{
+      const caret = inlineNum.selectionStart;
+      inlineNum.value = toLatinDigits(inlineNum.value).replace(/\D+/g,'');
+      try{ inlineNum.setSelectionRange(caret, caret); }catch{}
+    });
+
+    saveBtn.addEventListener('click', ()=>{
+      const numInput = editWrap.querySelector('.sip-edit-number');
+      const noteInput = editWrap.querySelector('.sip-edit-note');
+      const normalized = toLatinDigits(numInput.value).replace(/\D+/g,'');
+      const ok = updateSip(s.id, normalized, noteInput.value);
+      if (ok) { renderSipList(); }
+    });
+
+    delBtn.addEventListener('click', async ()=>{
+      const ok = await confirmDialog(`سيتم حذف SIP ${toLatinDigits(s.number)}. هل أنت متأكد؟`);
+      if(!ok) return;
+      deleteSip(s.id);
+    });
+
+    li.appendChild(normalWrap);
+    li.appendChild(btnsWrap);
+    li.appendChild(editWrap);
     ul.appendChild(li);
   }
+}
+
+// حذف SIP بسؤال تأكيد
+function deleteSip(id){
+  const idx = state.sips.findIndex(x=> x.id===id);
+  if(idx === -1){ toast('العنصر غير موجود','error'); return; }
+  const removed = state.sips.splice(idx,1)[0];
+  logEvent('sip', `حذف SIP ${removed.number}${removed.note? ' - '+removed.note:''}`);
+  // استرجاع قطعة إلى المخزون إن أمكن (بدون تجاوز السعة)
+  if (state.inventory.stock < state.inventory.capacity) {
+    state.inventory.stock += 1;
+    logEvent('inv', 'استرجاع 1 راوتر بعد حذف SIP', +1);
+  } else {
+    // في حال كانت السعة ممتلئة، لا نزيد المخزون لتجنب التجاوز
+  }
+  // استرجاع الكابل إذا كانت الملاحظة تحوي أرقام متر
+  const noteDigits = toLatinDigits(removed.note||'').match(/\d+/);
+  if (noteDigits){
+    const meters = Number(noteDigits[0]);
+    if (meters>0){
+      const before = state.cable.stock || 0;
+      const cap = Math.max(0, Number(state.cable.capacity||0));
+      const after = Math.min(cap, before + meters);
+      const applied = after - before; // موجب
+      state.cable.stock = after;
+      if (applied){ logEvent('inv', `استرجاع ${applied}م كابل بعد حذف SIP`, applied); }
+    }
+  }
+  saveState();
+  updateAllUI();
+  toast('تم حذف SIP','success');
 }
 
 /* ==========================
@@ -399,7 +632,7 @@ function exportXLSX(){
     const start = new Date(now); start.setDate(now.getDate()-6); start.setHours(0,0,0,0);
     const end = new Date(now); end.setHours(23,59,59,999);
     const weeklyRows = [
-      ['اليوم','التاريخ','الوقت','الشهر','رقم SIP','ملاحظات']
+      ['اليوم','التاريخ','الوقت','الشهر','رقم SIP','مطراج الكابل']
     ];
     const weeklyItems = state.sips
       .filter(s=>{ const t=new Date(s.createdAt); return t>=start && t<=end; })
@@ -458,7 +691,7 @@ function exportXLSX(){
 
     // Inventory sheet
     const invData = [
-      { 'السعة القصوى': capacity, 'المخزون الحالي': stock, 'المستهلك': used, 'تاريخ التصدير': fmtDateTime(nowIso()) }
+      { 'السعة القصوى (راوتر)': capacity, 'المخزون الحالي (راوتر)': stock, 'المستهلك (راوتر)': used, 'سعة الكابل (م)': state.cable.capacity||0, 'المتبقي كابل (م)': state.cable.stock||0, 'تاريخ التصدير': fmtDateTime(nowIso()) }
     ];
     const invSheet = XLSX.utils.json_to_sheet(invData);
     XLSX.utils.book_append_sheet(wb, invSheet, 'المخزون');
@@ -532,6 +765,7 @@ function unlockApp(){ const v = $('#unlockPassword').value; if(v===state.setting
 function bindEvents(){
   // تبويبات
   initTabs();
+  initSubTabs();
 
   // أزرار سريعة في لوحة التحكم
   $('#add5').addEventListener('click', ()=>adjustStock(5,'إضافة سريعة'));
@@ -566,38 +800,127 @@ function bindEvents(){
     deleteRecentInvLogs(c);
   });
 
+  // كابل: حفظ/تصفير وتعديلات سريعة
+  $('#saveCable')?.addEventListener('click', ()=>{
+    const cap = Number($('#invCableCapacity').value||0);
+    const cur = Number($('#invCableCurrent').value||0);
+    setCable(cap, cur);
+  });
+  $('#resetCable')?.addEventListener('click', ()=>{
+    setCable(0, 0);
+  });
+  $$('#inventory .btn[data-cdelta]')?.forEach(b=>{
+    b.addEventListener('click', ()=> adjustCable(Number(b.dataset.cdelta||0)));
+  });
+  $('#applyCustomCable')?.addEventListener('click', ()=>{
+    const d = Number($('#customCableDelta').value||0); if(!d) return; adjustCable(d, 'تعديل كابل مخصص'); $('#customCableDelta').value='';
+  });
+
   // SIP
   $('#sipForm').addEventListener('submit', async (e)=>{
     e.preventDefault();
-    const number = $('#sipNumber').value;
+    // حول أي أرقام عربية إلى لاتينية وتخلص من أي رموز غير أرقام
+    const number = toLatinDigits($('#sipNumber').value).replace(/\D+/g,'');
     const note = $('#sipNote').value;
+    let createdAtIso = null;
+    const useCustom = $('#sipCustomDateToggle')?.checked;
+    const dtInput = $('#sipDateTime');
+    if (useCustom && dtInput && dtInput.value){
+      // القيمة بدون منطقة زمنية، افترضها وقت محلي
+      const d = new Date(dtInput.value);
+      if (!isNaN(d.getTime())) createdAtIso = d.toISOString();
+    }
     const ok = await confirmDialog(`سيتم خصم 1 من المخزون لإضافة SIP ${number}. تأكيد؟`);
     if(!ok) return;
-    if (addSip(number, note)) { $('#sipForm').reset(); renderSipList(); }
+    if (addSip(number, note, createdAtIso)) { $('#sipForm').reset(); renderSipList(); }
   });
   $('#sipNumber').addEventListener('input', ()=>{
+    // طبّق تحويل الأرقام إلى لاتيني مباشرة في الحقل
+    const inp = $('#sipNumber');
+    const caret = inp.selectionStart;
+    const before = inp.value;
+    inp.value = toLatinDigits(inp.value).replace(/\D+/g,'');
+    // حاول الحفاظ على موضع المؤشر إن أمكن
+    try{ inp.setSelectionRange(caret, caret); }catch{}
     const remaining = state.inventory.stock - 1;
-    $('#sipImpact').textContent = remaining>=0 ? `المتبقي بعد الإضافة: ${remaining}` : 'لا يوجد مخزون كافٍ';
+    const hint = $('#sipImpact');
+    hint.textContent = remaining>=0 ? `المتبقي بعد الإضافة: ${remaining}` : 'لا يوجد مخزون كافٍ';
+    hint.classList.remove('text-warn','text-error');
+    if (remaining < 0){ hint.classList.add('text-error'); }
+    else if (remaining <= 5){ hint.classList.add('text-warn'); }
   });
-  ['searchSip','fromDate','toDate'].forEach(id=> $('#'+id).addEventListener('input', renderSipList));
+  ['searchSip','fromDate','toDate','noteFilter'].forEach(id=> $('#'+id)?.addEventListener('input', renderSipList));
 
-  // السجلات
-  ['searchLog','logFrom','logTo'].forEach(id=> $('#'+id).addEventListener('input', renderAllLogs));
+  // أزرار نطاق التاريخ السريعة لقائمة SIP
+  const setRange = (type)=>{
+    const from = $('#fromDate');
+    const to = $('#toDate');
+    const now = new Date();
+    let start=null, end=null;
+    if(type==='today'){
+      start = new Date(now); start.setHours(0,0,0,0);
+      end = new Date(now); end.setHours(23,59,59,999);
+    } else if(type==='week'){
+      start = new Date(now); start.setDate(now.getDate()-6); start.setHours(0,0,0,0);
+      end = new Date(now); end.setHours(23,59,59,999);
+    } else if(type==='month'){
+      start = new Date(now.getFullYear(), now.getMonth(), 1);
+      end = new Date(now); end.setHours(23,59,59,999);
+    } else if(type==='clear'){
+      from.value = ''; to.value = ''; renderSipList(); return;
+    }
+    // تعبئة حقول التاريخ بنسق YYYY-MM-DD
+    const toDateInputVal = (d)=> new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);
+    from.value = toDateInputVal(start);
+    to.value = toDateInputVal(end);
+    renderSipList();
+  };
+  $('#rangeToday')?.addEventListener('click', ()=> setRange('today'));
+  $('#rangeWeek')?.addEventListener('click', ()=> setRange('week'));
+  $('#rangeMonth')?.addEventListener('click', ()=> setRange('month'));
+  $('#clearRange')?.addEventListener('click', ()=> setRange('clear'));
 
+  // عناصر التاريخ المخصص
+  const toggle = $('#sipCustomDateToggle');
+  const dt = $('#sipDateTime');
+  const backBtn = $('#sipDateBackBtn');
+  if (toggle && dt && backBtn){
+    function setNow(){ dt.value = toDatetimeLocalValue(new Date()); }
+    toggle.addEventListener('change', ()=>{
+      const on = toggle.checked;
+      dt.disabled = !on;
+      backBtn.disabled = !on;
+      if (on){ setNow(); }
+      else { dt.value = ''; }
+    });
+    backBtn.addEventListener('click', ()=>{
+      if (!dt.value){ dt.value = toDatetimeLocalValue(new Date()); }
+      const d = new Date(dt.value);
+      if (isNaN(d.getTime())){ setNow(); return; }
+      d.setDate(d.getDate() - 1);
+      dt.value = toDatetimeLocalValue(d);
+    });
+  }
   // إعدادات
-  $('#primaryColor').addEventListener('input', (e)=> applyPrimaryColor(e.target.value));
+  if ($('#enableDark')){
+    $('#enableDark').addEventListener('change', (e)=> applyDarkMode(e.target.checked));
+    state.settings.darkEnabled = !!($('#enableDark')?.checked);
+  }
   $('#enablePassword').addEventListener('change', (e)=>{ $('#passwordWrap').style.display = e.target.checked? 'block':'none'; });
   $('#saveSettings').addEventListener('click', ()=>{
-    state.settings.primaryColor = $('#primaryColor').value;
+    // احتفظ باللون الحالي إن وجد
+    const currentPrimary = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim() || '#1e3a8a';
+    state.settings.primaryColor = currentPrimary;
     state.settings.passwordEnabled = $('#enablePassword').checked;
     state.settings.password = $('#appPassword').value || state.settings.password;
+    applyDarkMode(state.settings.darkEnabled);
     saveState();
+    updateAllUI();
     toast('تم حفظ الإعدادات','success');
   });
 
   // قفل
   $('#lockBtn').addEventListener('click', lockApp);
-  $('#unlockBtn').addEventListener('click', unlockApp);
 
   // نسخ احتياطي
   $('#exportBtn').addEventListener('click', ()=>{
@@ -608,6 +931,33 @@ function bindEvents(){
   $('#importInput').addEventListener('change', (e)=>{
     const f = e.target.files?.[0]; if(!f) return; importFile(f).finally(()=>{ e.target.value=''; });
   });
+
+  // تقارير سريعة CSV لعمليات SIP اليوم/الأسبوع
+  function exportSipsCsv(range){
+    const now = new Date();
+    let start, end;
+    if(range==='today'){
+      start = new Date(now); start.setHours(0,0,0,0);
+      end = new Date(now); end.setHours(23,59,59,999);
+    } else if(range==='week'){
+      start = new Date(now); start.setDate(now.getDate()-6); start.setHours(0,0,0,0);
+      end = new Date(now); end.setHours(23,59,59,999);
+    } else {
+      start = new Date(0); end = now;
+    }
+    const rows = [['id','number','note','createdAt']];
+    const items = state.sips.filter(s=>{ const t = new Date(s.createdAt); return t>=start && t<=end; });
+    for (const s of items){ rows.push([s.id, s.number, s.note||'', s.createdAt]); }
+    const csv = rows.map(r=> r.map(x=> x==null? '' : String(x).includes(',')||String(x).includes('"') ? '"'+String(x).replaceAll('"','""')+'"' : String(x)).join(',')).join('\n');
+    const blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `sips-${range}-${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    toast('تم تصدير تقرير SIP','success');
+  }
+  $('#exportTodaySips')?.addEventListener('click', ()=> exportSipsCsv('today'));
+  $('#exportWeekSips')?.addEventListener('click', ()=> exportSipsCsv('week'));
 
   // اختصارات لوحة المفاتيح
   document.addEventListener('keydown', (e)=>{
@@ -620,7 +970,8 @@ function bindEvents(){
 
 function updateSettingsUI(){
   applyPrimaryColor(state.settings.primaryColor || '#1e3a8a');
-  $('#primaryColor').value = state.settings.primaryColor || '#1e3a8a';
+  applyDarkMode(!!state.settings.darkEnabled);
+  if ($('#enableDark')) $('#enableDark').checked = !!state.settings.darkEnabled;
   $('#enablePassword').checked = !!state.settings.passwordEnabled;
   $('#passwordWrap').style.display = state.settings.passwordEnabled? 'block':'none';
   if(state.settings.passwordEnabled && !state.settings.password){ toast('يرجى تعيين كلمة مرور','warn'); }

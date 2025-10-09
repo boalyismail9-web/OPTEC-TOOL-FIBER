@@ -24,7 +24,7 @@ body{
 
 /* Header */
 .app-header{
-  display:flex;align-items:center;justify-content:space-between;
+  display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
   padding:16px 20px;background:var(--primary);color:var(--white);
   border-radius:var(--radius);
   box-shadow:var(--shadow);
@@ -34,6 +34,9 @@ body{
 
 /* Tabs */
 .tabs{display:flex;gap:8px;margin:16px 0}
+.header-tabs{margin:0}
+.header-tabs .tab{background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.25)}
+.header-tabs .tab.active{background:#fff;color:var(--primary)}
 .tab{
   background:var(--white);border:1px solid #e5e7eb;color:var(--primary);
   padding:10px 14px;border-radius:10px;cursor:pointer;transition:.2s;
@@ -60,6 +63,19 @@ body{
 .inventory-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
 .row{display:grid;grid-template-columns:repeat(12,1fr);gap:12px}
 .col{grid-column:span 6}
+/* Column span utilities */
+.col-1{grid-column:span 1}
+.col-2{grid-column:span 2}
+.col-3{grid-column:span 3}
+.col-4{grid-column:span 4}
+.col-5{grid-column:span 5}
+.col-6{grid-column:span 6}
+.col-7{grid-column:span 7}
+.col-8{grid-column:span 8}
+.col-9{grid-column:span 9}
+.col-10{grid-column:span 10}
+.col-11{grid-column:span 11}
+.col-12{grid-column:span 12}
 @media (max-width:640px){.col{grid-column:span 12}}
 .mt{margin-top:12px}
 
@@ -99,6 +115,8 @@ label{display:block;margin-bottom:6px;font-size:13px;color:#334155}
 
 /* Hint */
 .hint{margin-top:8px;color:#64748b;font-size:13px}
+.hint.text-warn{color:#9a3412}
+.hint.text-error{color:#991b1b}
 
 /* Modals */
 .modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.4)}
@@ -120,6 +138,9 @@ label{display:block;margin-bottom:6px;font-size:13px;color:#334155}
 /* Charts */
 canvas{max-width:100%}
 
+/* Highlights */
+mark.hl{background:#fff3bf;color:inherit;padding:0 2px;border-radius:3px}
+
 /* Dynamic states */
 .badge-low{background:#fff7ed;color:#9a3412}
 .badge-crit{background:#fef2f2;color:#991b1b}
@@ -128,3 +149,50 @@ canvas{max-width:100%}
 .tab-contents{display:block}
 .tab-content{display:none}
 .tab-content.shown{display:block}
+
+/* Sub-tabs inside SIP form */
+.sub-tabs{display:flex;gap:8px;margin:8px 0 12px}
+.sub-tab{
+  background:var(--white);border:1px solid #e5e7eb;color:var(--primary);
+  padding:8px 12px;border-radius:10px;cursor:pointer;transition:.2s;font-size:13px;
+}
+.sub-tab.active{background:var(--primary);color:#fff}
+.sub-tab:hover{transform:translateY(-1px)}
+.sub-tab-contents{display:block}
+.sub-tab-content{display:none}
+.sub-tab-content.shown{display:block}
+
+/* Compact SIP form */
+.compact-form .sub-tabs{display:none}
+.table.compact thead th{padding:6px 8px;font-size:12px}
+.table.compact tbody td{padding:6px 8px;font-size:13px}
+.compact-form label{font-size:12px;margin-bottom:4px}
+.compact-form input[type="text"],
+.compact-form input[type="password"],
+.compact-form input[type="number"],
+.compact-form input[type="date"],
+.compact-form input[type="datetime-local"],
+.compact-form input:not([type]){
+  padding:6px 8px;border-radius:8px;font-size:13px
+}
+.compact-form .buttons .btn{padding:8px 12px;font-size:13px;border-radius:8px}
+
+/* Dark Mode */
+html.dark body{background:linear-gradient(180deg, #0b1020, #0b1020 60%);color:#e5e7eb}
+html.dark .app-header{background:#0f172a;color:#e5e7eb}
+html.dark .tabs .tab{background:#111827;color:#cbd5e1;border-color:#1f2937}
+html.dark .tabs .tab.active{background:#1e3a8a;color:#fff}
+html.dark .card{background:#0f172a;border-color:#1f2937;color:#e5e7eb}
+html.dark .status-badge{background:#111827;color:#cbd5e1}
+html.dark input[type="number"],
+html.dark input[type="text"],
+html.dark input[type="password"],
+html.dark input[type="date"],
+html.dark input[type="datetime-local"],
+html.dark input:not([type]){background:#111827;border-color:#334155;color:#e5e7eb}
+html.dark .btn-light{background:#111827;color:#e5e7eb;border-color:#334155}
+html.dark .table{background:#0f172a;border-color:#1f2937}
+html.dark .table thead th{background:#111827;color:#e5e7eb;border-bottom:1px solid #1f2937}
+html.dark .table tbody td{border-top:1px solid #1f2937}
+html.dark .list li{background:#0b1220;border-color:#1f2937}
+html.dark .toast{background:#0f172a;color:#e5e7eb}

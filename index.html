@@ -3,36 +3,25 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>OPTEC TOOL FIBER</title>
+  <title>OPTEC-TOOL-FIBER</title>
   <link rel="stylesheet" href="styles.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-</head>
+  </head>
 <body>
   <div id="app">
     <header class="app-header">
       <h1>إدارة مخزون الراوتر</h1>
-      <div class="header-actions">
-        <button id="lockBtn" class="btn btn-light" title="قفل التطبيق (L)">🔒 قفل</button>
-        <button id="exportBtn" class="btn btn-light" title="تصدير النسخة الاحتياطية">⬇️ تصدير</button>
-        <button id="exportXlsxBtn" class="btn btn-primary" title="تصدير إلى Excel (.xlsx)">📊 Excel</button>
-        <label class="btn btn-light file-label" title="استيراد النسخة الاحتياطية">
-          ⬆️ استيراد
-          <input id="importInput" type="file" accept="application/json,text/csv" hidden />
-        </label>
-      </div>
+      <nav class="tabs header-tabs">
+        <button class="tab active" data-tab="dashboard">لوحة التحكم</button>
+        <button class="tab" data-tab="inventory">إدارة المخزون</button>
+        <button class="tab" data-tab="sip">إضافة SIP</button>
+        <button class="tab" data-tab="reports">التقارير والسجلات</button>
+        <button class="tab" data-tab="settings">الإعدادات</button>
+      </nav>
     </header>
-
-    <nav class="tabs">
-      <button class="tab active" data-tab="dashboard">لوحة التحكم</button>
-      <button class="tab" data-tab="inventory">إدارة المخزون</button>
-      <button class="tab" data-tab="sip">إضافة SIP</button>
-      <button class="tab" data-tab="reports">التقارير والسجلات</button>
-      <button class="tab" data-tab="settings">الإعدادات</button>
-    </nav>
 
     <main class="tab-contents">
       <!-- Dashboard -->
@@ -46,6 +35,16 @@
               <span id="maxCapacity">0</span>
             </div>
             <div id="stockStatus" class="status-badge">-</div>
+          </div>
+
+          <div class="card">
+            <h3>ميتراج الكابل (بالمتر)</h3>
+            <div class="kpi">
+              <span id="cableCurrent">0</span>
+              <span>/</span>
+              <span id="cableCapacity">0</span>
+            </div>
+            <div id="cableStatus" class="status-badge">-</div>
           </div>
 
           <div class="card">
@@ -155,6 +154,40 @@
             </div>
             <ul id="invLogs" class="list"></ul>
           </div>
+
+          <div class="card">
+            <h3>ميتراج الكابل (بالمتر)</h3>
+            <div class="row">
+              <div class="col">
+                <label>المتبقي (م)</label>
+                <input id="invCableCurrent" type="number" min="0" />
+              </div>
+              <div class="col">
+                <label>السعة القصوى (م)</label>
+                <input id="invCableCapacity" type="number" min="0" />
+              </div>
+            </div>
+            <div class="buttons mt">
+              <button id="saveCable" class="btn btn-success">حفظ</button>
+              <button id="resetCable" class="btn btn-light">تصفير</button>
+            </div>
+            <div class="buttons mt">
+              <button class="btn btn-primary" data-cdelta="5">+5م</button>
+              <button class="btn btn-primary" data-cdelta="10">+10م</button>
+              <button class="btn btn-danger" data-cdelta="-5">-5م</button>
+              <button class="btn btn-danger" data-cdelta="-10">-10م</button>
+            </div>
+            <div class="row mt">
+              <div class="col">
+                <label>قيمة مخصصة (م)</label>
+                <input id="customCableDelta" type="number" />
+              </div>
+              <div class="col">
+                <label>&nbsp;</label>
+                <button id="applyCustomCable" class="btn btn-primary">تطبيق</button>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -162,16 +195,38 @@
       <section id="sip" class="tab-content">
         <div class="card">
           <h3>إضافة رقم SIP جديد</h3>
-          <form id="sipForm">
-            <div class="row">
-              <div class="col">
-                <label>رقم SIP (مثال: 1000-9999)</label>
-                <input id="sipNumber" inputmode="numeric" pattern="^[0-9]{3,15}$" required />
-              </div>
-              <div class="col">
-                <label>مطراج الكابل (اختياري)</label>
-                <input id="sipNote" />
-              </div>
+          <form id="sipForm" class="compact-form">
+            <div class="sub-tabs">
+              <button class="sub-tab active" data-subtab="sip-all">النموذج</button>
+            </div>
+
+            <div class="sub-tab-contents">
+              <section id="sip-all" class="sub-tab-content shown">
+                <div class="table-wrap">
+                  <table class="table compact"><tbody>
+                    <tr>
+                      <td style="width:200px"><label for="sipNumber">ادخيل SIP</label></td>
+                      <td><input id="sipNumber" inputmode="numeric" pattern="^[0-9]{3,15}$" placeholder="ادخيل SIP" required /></td>
+                    </tr>
+                    <tr>
+                      <td><label for="sipNote">مطراج الكابل</label></td>
+                      <td><input id="sipNote" placeholder="مطراج الكابل" /></td>
+                    </tr>
+                    <tr>
+                      <td><label for="sipCustomDateToggle">تعيين تاريخ/وقت مخصص</label></td>
+                      <td><input id="sipCustomDateToggle" type="checkbox" /></td>
+                    </tr>
+                    <tr>
+                      <td><label for="sipDateTime">التاريخ والوقت</label></td>
+                      <td><input id="sipDateTime" type="datetime-local" disabled /></td>
+                    </tr>
+                    <tr>
+                      <td><label>يوم سابق</label></td>
+                      <td><button id="sipDateBackBtn" type="button" class="btn btn-light" disabled>◀️ يوم سابق</button></td>
+                    </tr>
+                  </tbody></table>
+                </div>
+              </section>
             </div>
             <div class="buttons mt">
               <button class="btn btn-success" type="submit">حفظ</button>
@@ -184,9 +239,16 @@
         <div class="card">
           <h3>بحث وتصفية</h3>
           <div class="row">
-            <div class="col"><input id="searchSip" placeholder="بحث عن SIP" /></div>
-            <div class="col"><input id="fromDate" type="date" /></div>
-            <div class="col"><input id="toDate" type="date" /></div>
+            <div class="col-4 col"><input id="searchSip" placeholder="بحث عن SIP" /></div>
+            <div class="col-4 col"><input id="noteFilter" placeholder="تصفية بالملاحظة" /></div>
+            <div class="col-2 col"><input id="fromDate" type="date" /></div>
+            <div class="col-2 col"><input id="toDate" type="date" /></div>
+          </div>
+          <div class="buttons mt">
+            <button class="btn btn-light" id="rangeToday">اليوم</button>
+            <button class="btn btn-light" id="rangeWeek">هذا الأسبوع</button>
+            <button class="btn btn-light" id="rangeMonth">هذا الشهر</button>
+            <button class="btn" id="clearRange">مسح التحديد</button>
           </div>
           <ul id="sipList" class="list"></ul>
         </div>
@@ -201,6 +263,10 @@
             <div class="col"><input id="logFrom" type="date" /></div>
             <div class="col"><input id="logTo" type="date" /></div>
           </div>
+          <div class="buttons mt">
+            <button id="exportTodaySips" class="btn btn-light">تقرير اليوم (CSV)</button>
+            <button id="exportWeekSips" class="btn btn-primary">تقرير الأسبوع (CSV)</button>
+          </div>
           <ul id="allLogs" class="list"></ul>
         </div>
       </section>
@@ -208,11 +274,11 @@
       <!-- Settings -->
       <section id="settings" class="tab-content">
         <div class="card">
-          <h3>خيارات التخصيص</h3>
+          <h3>خيارات العرض</h3>
           <div class="row">
             <div class="col">
-              <label>اختيار اللون الأساسي</label>
-              <input id="primaryColor" type="color" value="#1e3a8a" />
+              <label>تفعيل الوضع الداكن</label>
+              <input id="enableDark" type="checkbox" />
             </div>
             <div class="col">
               <label>تفعيل كلمة مرور</label>
@@ -225,6 +291,49 @@
           </div>
           <div class="buttons mt">
             <button id="saveSettings" class="btn btn-success">حفظ الإعدادات</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>عمليات النظام</h3>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>العملية</th>
+                  <th>التحكم</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>القفل</td>
+                  <td>
+                    <button id="lockBtn" class="btn btn-light" title="قفل التطبيق (L)">🔒 قفل</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td>التصدير</td>
+                  <td>
+                    <button id="exportBtn" class="btn btn-light" title="تصدير النسخة الاحتياطية">⬇️ تصدير</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Excel</td>
+                  <td>
+                    <button id="exportXlsxBtn" class="btn btn-primary" title="تصدير إلى Excel (.xlsx)">📊 Excel</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td>الاستيراد</td>
+                  <td>
+                    <label class="btn btn-light file-label" title="استيراد النسخة الاحتياطية">
+                      ⬆️ استيراد
+                      <input id="importInput" type="file" accept="application/json,text/csv" hidden />
+                    </label>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
